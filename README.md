@@ -83,7 +83,7 @@
 1. **Clone Repository**
    ```bash
    git clone https://github.com/SanjayTeja01/BDA-Project.git
-   cd sparkinsight
+   cd BDA-Project
    ```
 
 2. **Firebase Setup**
@@ -113,7 +113,7 @@
    cd frontend/
    python3 -m http.server 3000
    ```
-   *Visit `http://localhost:3000/login.html` in your browser.*
+   *⚡ **Application Live URL**: Visit [http://localhost:3000/login.html](http://localhost:3000/login.html) in your browser to start using the platform!*
 
 ---
 
@@ -126,58 +126,61 @@ If you prefer a perfectly clean containerized environment, you can run the entir
 - **Mac:** Download and install [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/).
 - **Linux:** Follow official documentation: `sudo apt-get install docker-ce docker-ce-cli containerd.io`
 
-### **Running SparkInsight with Docker**
-1. Ensure your `backend/serviceAccountKey.json` is present.
-2. Build the Docker Image:
+### **Running SparkInsight with Docker Compose**
+1. Ensure your local `.env` and `backend/serviceAccountKey.json` files are properly configured safely.
+2. Build and start the completely containerized backend services beautifully orchestrated by running:
    ```bash
-   docker build -t sparkinsight .
+   docker-compose up --build
    ```
-3. Run the Container securely binding it to your local port 8000:
-   ```bash
-   docker run -p 8000:8000 sparkinsight
-   ```
-4. Once the Docker container says it's running, you can serve your static `frontend/` folder locally via standard Python HTTP server (Step 6 above) and interact natively with the app.
+3. The backend API is now running on `http://localhost:8000`. You can serve your static `frontend/` folder locally via standard Python HTTP server (Step 6 above) and interact natively with the app.
 
 ---
 
 ## 📁 Project Structure
 
-```
-sparkinsight/
+```text
+BDA-Project/
 ├── backend/                  # FastApi and PySpark Logic
 │   ├── config/
 │   │   └── datasets.json     # Internal catalog mappings
-│   ├── main.py               # Application entrypoint & HTTP endpoints
-│   ├── firebase_config.py    # Firebase Admin SDK init
+│   ├── analytics_engine.py   # Statistical aggregations
 │   ├── auth_middleware.py    # Bearer token security
-│   ├── job_controller.py     # Central pipeline orchestration
-│   ├── dataset_loader.py     # Loads datasets via PySpark memory
-│   ├── profiling_engine.py   # Initial shape scanning
 │   ├── cleaning_pipeline.py  # Spark manipulation and row scrub
 │   ├── data_quality_engine.py # Grading score calculator
-│   ├── analytics_engine.py   # Statistical aggregations
+│   ├── dataset_catalog.py    # Dataset references and loaders
+│   ├── dataset_loader.py     # Loads datasets via PySpark memory
 │   ├── execution_metrics_engine.py # Diagnostics and metrics tracking
 │   ├── filter_engine.py      # Schema-aware filter builder
-│   ├── visualization_engine.py # Chart recommendation layer
+│   ├── firebase_config.py    # Firebase Admin SDK init
 │   ├── insight_generator.py  # AI text generator
-│   ├── result_formatter.py   # JSON merging format layer
+│   ├── job_controller.py     # Central pipeline orchestration
+│   ├── logger.py             # Error and logic tracking
+│   ├── main.py               # Application entrypoint & HTTP endpoints
+│   ├── profiling_engine.py   # Initial shape scanning
 │   ├── report_generator.py   # Excel/PDF creator
+│   ├── result_formatter.py   # JSON merging format layer
+│   ├── setup_datasets.py     # Initial dataset preparation 
 │   ├── spark_session.py      # Session context factory
-│   └── logger.py             # Error and logic tracking
+│   ├── visualization_engine.py # Chart recommendation layer
+│   └── serviceAccountKey.json # SDK Secure Key (Not tracked by Git)
 │
 ├── frontend/                 # Client UI interface 
-│   ├── login.html            # Gateway and Firebase Web Auth
-│   ├── index.html            # Data Explorer
 │   ├── dashboard.html        # Interactive chart presentation layer
-│   ├── job_status.html       # Socket-style polling tracker
+│   ├── index.html            # Data Explorer
 │   ├── job_history.html      # Persistent report access
+│   ├── job_status.html       # Socket-style polling tracker
+│   ├── login.html            # Gateway and Firebase Web Auth
+│   ├── firebaseConfig.js     # Secure Web API config injected into HTML
 │   ├── script.js             # Shared logic and endpoint callers
 │   └── style.css             # System-wide dark styling
 │
-├── Dockerfile                # Environment container instructions
+├── logs/                     # Application execution logs
 ├── docker-compose.yml        # Advanced container orchestration
+├── Dockerfile                # Environment container instructions
 ├── README.md                 # System overview
-└── requirements.txt          # Python strict dependencies
+├── requirements.txt          # Python strict dependencies
+├── .env                      # Hidden Environment Variables
+└── .gitignore                # Git Tracking Ignore File
 ```
 
 ---
