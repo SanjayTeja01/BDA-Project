@@ -1,0 +1,129 @@
+2026-03-30 00:10:06 | INFO     | backend.main | SparkInsight starting up...
+2026-03-30 00:10:06 | INFO     | backend.firebase_config | Firebase initialized with service account credentials.
+2026-03-30 00:10:36 | INFO     | backend.dataset_catalog | Loaded 10 datasets from catalog.
+2026-03-30 00:10:36 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 created for user ytAX9VqrzAZTRHYc2SlFFZUGhwJ3 on dataset 'nyc_taxi_trips'
+2026-03-30 00:10:36 | INFO     | backend.job_controller | Retry: new job ba79634d-c207-410f-b087-41c28edb3601 created from failed job 5914c5cd-e3d3-4f5a-b1f1-9cbb59d9cfb1
+2026-03-30 00:10:36 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 → profiling
+2026-03-30 00:10:36 | INFO     | backend.spark_session | Initializing Spark session: master=local[*], partitions=8
+2026-03-30 00:10:36 | INFO     | backend.spark_session | Using Python: C:\Users\SANJAY\AppData\Local\Programs\Python\Python310\python.exe
+2026-03-30 00:11:03 | INFO     | backend.spark_session | Spark session created. Version: 3.5.0
+2026-03-30 00:11:03 | WARNING  | backend.dataset_loader | Dataset file not found at datasets/transportation/nyc_taxi_trips.parquet. Generating synthetic demo data.
+2026-03-30 00:11:29 | INFO     | backend.dataset_loader | Generated synthetic dataset 'nyc_taxi_trips' with 50000 rows, 18 columns
+2026-03-30 00:11:42 | INFO     | backend.dataset_loader | Dataset 'nyc_taxi_trips' loaded and cached. Partitions: 12, Columns: 18
+2026-03-30 00:11:42 | INFO     | backend.execution_metrics_engine | Stage 'load' completed in 66.410s
+2026-03-30 00:11:42 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:12:11 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 18 cols, 7 numeric, 9 categorical
+2026-03-30 00:12:11 | INFO     | backend.execution_metrics_engine | Stage 'profiling' completed in 28.404s
+2026-03-30 00:12:11 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 → cleaning
+2026-03-30 00:12:11 | INFO     | backend.cleaning_pipeline | Starting cleaning pipeline for 'nyc_taxi_trips'...
+2026-03-30 00:12:13 | INFO     | backend.cleaning_pipeline | Cleaning complete. 0 rows removed, 0 cols removed.
+2026-03-30 00:12:13 | INFO     | backend.execution_metrics_engine | Stage 'cleaning' completed in 1.986s
+2026-03-30 00:12:13 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:12:17 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 18 cols, 7 numeric, 9 categorical
+2026-03-30 00:12:17 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 → quality_scoring
+2026-03-30 00:12:17 | INFO     | backend.data_quality_engine | Computing data quality score...
+2026-03-30 00:12:17 | INFO     | backend.data_quality_engine | Quality score: 53.92/100 (F)
+2026-03-30 00:12:17 | INFO     | backend.execution_metrics_engine | Stage 'quality_scoring' completed in 0.754s
+2026-03-30 00:12:18 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 → analytics
+2026-03-30 00:12:18 | INFO     | backend.analytics_engine | Starting analytics for dataset 'nyc_taxi_trips'...
+2026-03-30 00:12:31 | INFO     | backend.analytics_engine | Analytics complete.
+2026-03-30 00:12:31 | INFO     | backend.execution_metrics_engine | Stage 'analytics' completed in 13.959s
+2026-03-30 00:12:33 | INFO     | backend.filter_engine | Generated 18 dynamic filters from schema.
+2026-03-30 00:12:33 | INFO     | backend.visualization_engine | Visualization engine recommended 7 charts.
+2026-03-30 00:12:33 | INFO     | backend.insight_generator | Generated 5 insights.
+2026-03-30 00:12:33 | INFO     | backend.execution_metrics_engine | Stage 'post_processing' completed in 1.678s
+2026-03-30 00:12:33 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 → formatting
+2026-03-30 00:12:33 | INFO     | backend.result_formatter | Result formatted for job ba79634d-c207-410f-b087-41c28edb3601
+2026-03-30 00:12:34 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 → completed
+2026-03-30 00:12:34 | INFO     | backend.job_controller | Job ba79634d-c207-410f-b087-41c28edb3601 completed in 117.396s
+2026-03-30 00:14:35 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a created for user ytAX9VqrzAZTRHYc2SlFFZUGhwJ3 on dataset 'nyc_taxi_trips'
+2026-03-30 00:14:35 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a → profiling
+2026-03-30 00:14:35 | INFO     | backend.dataset_loader | Returning cached DataFrame for 'nyc_taxi_trips'
+2026-03-30 00:14:35 | INFO     | backend.execution_metrics_engine | Stage 'load' completed in 0.000s
+2026-03-30 00:14:35 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:14:54 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 18 cols, 7 numeric, 9 categorical
+2026-03-30 00:14:54 | INFO     | backend.execution_metrics_engine | Stage 'profiling' completed in 18.619s
+2026-03-30 00:14:54 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a → cleaning
+2026-03-30 00:14:54 | INFO     | backend.cleaning_pipeline | Starting cleaning pipeline for 'nyc_taxi_trips'...
+2026-03-30 00:14:57 | INFO     | backend.cleaning_pipeline | Cleaning complete. 0 rows removed, 0 cols removed.
+2026-03-30 00:14:57 | INFO     | backend.execution_metrics_engine | Stage 'cleaning' completed in 3.194s
+2026-03-30 00:14:57 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:15:09 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 18 cols, 7 numeric, 9 categorical
+2026-03-30 00:15:09 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a → quality_scoring
+2026-03-30 00:15:09 | INFO     | backend.data_quality_engine | Computing data quality score...
+2026-03-30 00:15:11 | INFO     | backend.data_quality_engine | Quality score: 53.92/100 (F)
+2026-03-30 00:15:11 | INFO     | backend.execution_metrics_engine | Stage 'quality_scoring' completed in 1.875s
+2026-03-30 00:15:11 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a → analytics
+2026-03-30 00:15:11 | INFO     | backend.analytics_engine | Starting analytics for dataset 'nyc_taxi_trips'...
+2026-03-30 00:15:32 | INFO     | backend.analytics_engine | Analytics complete.
+2026-03-30 00:15:32 | INFO     | backend.execution_metrics_engine | Stage 'analytics' completed in 20.983s
+2026-03-30 00:15:34 | INFO     | backend.filter_engine | Generated 18 dynamic filters from schema.
+2026-03-30 00:15:34 | INFO     | backend.visualization_engine | Visualization engine recommended 7 charts.
+2026-03-30 00:15:34 | INFO     | backend.insight_generator | Generated 5 insights.
+2026-03-30 00:15:34 | INFO     | backend.execution_metrics_engine | Stage 'post_processing' completed in 1.631s
+2026-03-30 00:15:34 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a → formatting
+2026-03-30 00:15:34 | INFO     | backend.result_formatter | Result formatted for job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a
+2026-03-30 00:15:34 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a → completed
+2026-03-30 00:15:34 | INFO     | backend.job_controller | Job 88189b3a-9a5c-44d4-85c7-ce9e3c53847a completed in 58.717s
+2026-03-30 00:29:33 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e created for user ytAX9VqrzAZTRHYc2SlFFZUGhwJ3 on dataset 'medicare_claims'
+2026-03-30 00:29:33 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e → profiling
+2026-03-30 00:29:33 | WARNING  | backend.dataset_loader | Dataset file not found at datasets/healthcare/medicare_claims.parquet. Generating synthetic demo data.
+2026-03-30 00:29:43 | INFO     | backend.dataset_loader | Generated synthetic dataset 'medicare_claims' with 50000 rows, 14 columns
+2026-03-30 00:29:58 | INFO     | backend.dataset_loader | Dataset 'medicare_claims' loaded and cached. Partitions: 12, Columns: 14
+2026-03-30 00:29:58 | INFO     | backend.execution_metrics_engine | Stage 'load' completed in 25.131s
+2026-03-30 00:29:58 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:30:11 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 14 cols, 3 numeric, 9 categorical
+2026-03-30 00:30:11 | INFO     | backend.execution_metrics_engine | Stage 'profiling' completed in 13.594s
+2026-03-30 00:30:12 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e → cleaning
+2026-03-30 00:30:12 | INFO     | backend.cleaning_pipeline | Starting cleaning pipeline for 'medicare_claims'...
+2026-03-30 00:30:16 | INFO     | backend.cleaning_pipeline | Cleaning complete. 0 rows removed, 0 cols removed.
+2026-03-30 00:30:16 | INFO     | backend.execution_metrics_engine | Stage 'cleaning' completed in 4.256s
+2026-03-30 00:30:16 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:30:23 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 14 cols, 3 numeric, 9 categorical
+2026-03-30 00:30:23 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e → quality_scoring
+2026-03-30 00:30:23 | INFO     | backend.data_quality_engine | Computing data quality score...
+2026-03-30 00:30:23 | INFO     | backend.data_quality_engine | Quality score: 57.91/100 (F)
+2026-03-30 00:30:23 | INFO     | backend.execution_metrics_engine | Stage 'quality_scoring' completed in 0.470s
+2026-03-30 00:30:23 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e → analytics
+2026-03-30 00:30:23 | INFO     | backend.analytics_engine | Starting analytics for dataset 'medicare_claims'...
+2026-03-30 00:30:32 | INFO     | backend.analytics_engine | Analytics complete.
+2026-03-30 00:30:32 | INFO     | backend.execution_metrics_engine | Stage 'analytics' completed in 8.615s
+2026-03-30 00:30:33 | INFO     | backend.filter_engine | Generated 14 dynamic filters from schema.
+2026-03-30 00:30:33 | INFO     | backend.visualization_engine | Visualization engine recommended 7 charts.
+2026-03-30 00:30:33 | INFO     | backend.insight_generator | Generated 5 insights.
+2026-03-30 00:30:33 | INFO     | backend.execution_metrics_engine | Stage 'post_processing' completed in 1.081s
+2026-03-30 00:30:33 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e → formatting
+2026-03-30 00:30:33 | INFO     | backend.result_formatter | Result formatted for job bc7775e6-8cac-4674-9547-a9ed73c3f99e
+2026-03-30 00:30:34 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e → completed
+2026-03-30 00:30:34 | INFO     | backend.job_controller | Job bc7775e6-8cac-4674-9547-a9ed73c3f99e completed in 60.517s
+2026-03-30 00:40:33 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 created for user ytAX9VqrzAZTRHYc2SlFFZUGhwJ3 on dataset 'nyc_taxi_trips'
+2026-03-30 00:40:34 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 → profiling
+2026-03-30 00:40:34 | INFO     | backend.dataset_loader | Returning cached DataFrame for 'nyc_taxi_trips'
+2026-03-30 00:40:34 | INFO     | backend.execution_metrics_engine | Stage 'load' completed in 0.001s
+2026-03-30 00:40:34 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:40:48 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 18 cols, 7 numeric, 9 categorical
+2026-03-30 00:40:48 | INFO     | backend.execution_metrics_engine | Stage 'profiling' completed in 14.797s
+2026-03-30 00:40:48 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 → cleaning
+2026-03-30 00:40:48 | INFO     | backend.cleaning_pipeline | Starting cleaning pipeline for 'nyc_taxi_trips'...
+2026-03-30 00:40:51 | INFO     | backend.cleaning_pipeline | Cleaning complete. 0 rows removed, 0 cols removed.
+2026-03-30 00:40:51 | INFO     | backend.execution_metrics_engine | Stage 'cleaning' completed in 2.993s
+2026-03-30 00:40:51 | INFO     | backend.profiling_engine | Starting data profiling...
+2026-03-30 00:41:01 | INFO     | backend.profiling_engine | Profiling complete: 50000 rows, 18 cols, 7 numeric, 9 categorical
+2026-03-30 00:41:01 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 → quality_scoring
+2026-03-30 00:41:01 | INFO     | backend.data_quality_engine | Computing data quality score...
+2026-03-30 00:41:03 | INFO     | backend.data_quality_engine | Quality score: 53.92/100 (F)
+2026-03-30 00:41:03 | INFO     | backend.execution_metrics_engine | Stage 'quality_scoring' completed in 1.835s
+2026-03-30 00:41:03 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 → analytics
+2026-03-30 00:41:03 | INFO     | backend.analytics_engine | Starting analytics for dataset 'nyc_taxi_trips'...
+2026-03-30 00:41:18 | INFO     | backend.analytics_engine | Analytics complete.
+2026-03-30 00:41:18 | INFO     | backend.execution_metrics_engine | Stage 'analytics' completed in 14.550s
+2026-03-30 00:41:19 | INFO     | backend.filter_engine | Generated 18 dynamic filters from schema.
+2026-03-30 00:41:19 | INFO     | backend.visualization_engine | Visualization engine recommended 7 charts.
+2026-03-30 00:41:19 | INFO     | backend.insight_generator | Generated 5 insights.
+2026-03-30 00:41:19 | INFO     | backend.execution_metrics_engine | Stage 'post_processing' completed in 1.157s
+2026-03-30 00:41:19 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 → formatting
+2026-03-30 00:41:19 | INFO     | backend.result_formatter | Result formatted for job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1
+2026-03-30 00:41:20 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 → completed
+2026-03-30 00:41:20 | INFO     | backend.job_controller | Job c51c2beb-9dfb-48c9-9029-944fcdd0ccd1 completed in 45.369s
+2026-03-30 00:43:31 | INFO     | backend.report_generator | PDF report generated: 5953 bytes
+2026-03-30 00:45:03 | INFO     | backend.report_generator | Excel report generated: 14422 bytes

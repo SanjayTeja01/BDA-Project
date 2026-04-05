@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SparkInsight — Job Status</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="firebaseConfig.js"></script>
+  <script src="script.js?v=20260327"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <header class="top-header">
+      <div>
+        <div class="header-title">Job Status</div>
+        <div class="header-subtitle">Real-time analytics job progress tracking</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" onclick="loadJob()">🔄 Refresh</button>
+        <a href="job_history.html" class="btn btn-ghost btn-sm">📋 History</a>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- Job ID input if none in storage -->
+      <div class="card mb-6" id="job-lookup" style="display:none;">
+        <div class="section-header">
+          <div class="section-icon blue">🔍</div>
+          <div><div class="section-title">Look Up Job</div><div class="section-desc">Enter a job ID to track its status</div></div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <input type="text" class="form-input" id="job-id-input" placeholder="Enter Job ID (UUID)..." style="flex:1;" />
+          <button class="btn btn-primary" onclick="lookupJob()">Track Job</button>
+        </div>
+      </div>
+
+      <!-- No job banner -->
+      <div id="no-job-state" class="empty-state hidden">
+        <div class="empty-state-icon">⚙️</div>
+        <div class="empty-state-title">No active job</div>
+        <div class="empty-state-desc">Start an analysis from the Dataset Explorer to track progress here.</div>
+        <a href="index.html" class="btn btn-primary" style="margin-top:16px;">Browse Datasets</a>
+      </div>
+
+      <!-- Job Info Banner -->
+      <div id="job-banner" class="card mb-6 hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">DATASET</div>
+            <div style="font-family:var(--font-display);font-size:17px;font-weight:700;" id="banner-dataset">—</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">JOB ID</div>
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--accent-cyan);" id="banner-jobid">—</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">STATUS</div>
+            <div id="banner-status">—</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">STARTED</div>
+            <div style="font-size:13px;color:var(--text-secondary);" id="banner-started">—</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button id="btn-view-dashboard" class="btn btn-primary hidden" onclick="viewDashboard()">📊 View Dashboard</button>
+            <button id="btn-retry" class="btn btn-danger hidden" onclick="retryJob()">🔁 Retry</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress Steps -->
+      <div class="card mb-6 hidden" id="progress-card">
+        <div class="card-header">
+          <div class="card-title">⚙️ Pipeline Progress</div>
+          <div id="elapsed-time" style="font-family:var(--font-mono);font-size:12px;color:var(--accent-cyan);"></div>
+        </div>
+        <div class="progress-steps" id="progress-steps"></div>
+      </div>
+
+      <!-- Live Log -->
+      <div class="card mb-6 hidden" id="log-card">
+        <div class="card-header">
+          <div class="card-title">📟 Live Log</div>
+          <button class="btn btn-ghost btn-sm" onclick="toggleLog()">Toggle</button>
+        </div>
+        <div id="live-log" style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;font-family:var(--font-mono);font-size:11px;max-height:260px;overflow-y:auto;"></div>
+      </div>
+
+      <!-- Error Panel -->
+      <div id="error-panel" class="hidden">
+        <div class="alert alert-error mb-4">
+          <span>❌</span>
+          <div>
+            <div style="font-weight:600;margin-bottom:4px;">Job Failed</div>
+            <div id="error-message"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Completed Summary -->
+      <div id="completed-panel" class="hidden">
+        <div class="alert alert-success mb-6">
+          <span>✅</span>
+          <div>
+            <div style="font-weight:600;margin-bottom:4px;">Analysis Complete!</div>
+            <div>Your analytics results are ready. View the full dashboard or download a report.</div>
+          </div>
+        </div>
+        <div class="stats-grid mb-6" id="completion-stats"></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-lg" onclick="viewDashboard()">📊 Open Dashboard</button>
+          <button class="btn btn-secondary" onclick="downloadReport('pdf')">📥 Download PDF</button>
+          <button class="btn btn-secondary" onclick="downloadReport('excel')">📊 Download Excel</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  initFirebase();
+  const STAGES = [
+    { key: 'queued',          label: 'Queued',    icon: '⏳' },
+    { key: 'profiling',       label: 'Profiling', icon: '🔍' },
+    { key: 'cleaning',        label: 'Cleaning',  icon: '🧹' },
+    { key: 'quality_scoring', label: 'Quality',   icon: '🏆' },
+    { key: 'analytics',       label: 'Analytics', icon: '⚡' },
+    { key: 'formatting',      label: 'Formatting',icon: '📦' },
+    { key: 'completed',       label: 'Done',      icon: '✅' },
+  ];
+
+  let currentJobId  = null;
+  let pollingTimer  = null;
+  let startTs       = null;
+  let elapsedTimer  = null;
+  let logLines      = [];
+
+  (async () => {
+    document.getElementById('sidebar').innerHTML = buildSidebar('status');
+    await requireAuth();
+
+    const saved = getCurrentJob();
+    if (saved) {
+      currentJobId = saved.jobId;
+      document.getElementById('banner-dataset').textContent = (saved.datasetName || '').replace(/_/g,' ');
+      document.getElementById('banner-jobid').textContent   = saved.jobId;
+      showJobUI();
+      await loadJob();
+    } else {
+      document.getElementById('job-lookup').style.display = 'block';
+      document.getElementById('no-job-state').classList.remove('hidden');
+    }
+  })();
+
+  function showJobUI() {
+    document.getElementById('job-banner').classList.remove('hidden');
+    document.getElementById('progress-card').classList.remove('hidden');
+    document.getElementById('log-card').classList.remove('hidden');
+    renderProgressSteps('queued');
+  }
+
+  async function lookupJob() {
+    const id = document.getElementById('job-id-input').value.trim();
+    if (!id) return;
+    currentJobId = id;
+    document.getElementById('banner-jobid').textContent = id;
+    document.getElementById('job-lookup').style.display = 'none';
+    document.getElementById('no-job-state').classList.add('hidden');
+    showJobUI();
+    await loadJob();
+  }
+
+  async function loadJob() {
+    if (!currentJobId) return;
+    try {
+      const data = await api('GET', `/job/${currentJobId}/status`);
+      updateJobUI(data);
+
+      if (!['completed','failed'].includes(data.status)) {
+        startElapsedTimer();
+        pollingTimer = await pollJobStatus(
+          currentJobId,
+          updateJobUI,
+          onJobComplete,
+          onJobFailed,
+          2500,
+        );
+      } else {
+        if (data.status === 'completed') onJobComplete(data);
+        else onJobFailed(data);
+      }
+    } catch (e) {
+      toast('Failed to load job', e.message, 'error');
+    }
+  }
+
+  function updateJobUI(data) {
+    document.getElementById('banner-status').innerHTML = statusBadge(data.status);
+    document.getElementById('banner-started').textContent = data.start_time ? new Date(data.start_time).toLocaleString() : '—';
+    renderProgressSteps(data.status);
+    addLogLine(data.status);
+  }
+
+  function renderProgressSteps(currentStatus) {
+    const stageOrder = STAGES.map(s => s.key);
+    const currentIdx = stageOrder.indexOf(currentStatus);
+
+    document.getElementById('progress-steps').innerHTML = STAGES.map((s, i) => {
+      let cls = '';
+      if (i < currentIdx || currentStatus === 'completed') cls = 'done';
+      else if (i === currentIdx) cls = currentStatus === 'failed' ? 'failed' : 'active';
+      return `
+        <div class="progress-step ${cls}">
+          <div class="step-circle">${cls === 'done' ? '✓' : s.icon}</div>
+          <div class="step-label">${s.label}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function onJobComplete(data) {
+    clearInterval(elapsedTimer);
+    document.getElementById('btn-view-dashboard').classList.remove('hidden');
+    document.getElementById('completed-panel').classList.remove('hidden');
+    document.getElementById('error-panel').classList.add('hidden');
+    renderCompletionStats(data);
+    addLogLine('completed', '✅ Analysis pipeline complete!');
+    toast('Analysis complete!', 'View your dashboard for results.', 'success', 6000);
+  }
+
+  function onJobFailed(data) {
+    clearInterval(elapsedTimer);
+    document.getElementById('btn-retry').classList.remove('hidden');
+    document.getElementById('error-panel').classList.remove('hidden');
+    document.getElementById('error-message').textContent = data.error || 'Unknown error occurred.';
+    addLogLine('failed', `❌ ${data.error || 'Job failed.'}`);
+    toast('Job failed', data.error || '', 'error', 8000);
+  }
+
+  function renderCompletionStats(data) {
+    document.getElementById('completion-stats').innerHTML = `
+      <div class="stat-card emerald">
+        <div class="stat-label">Records Processed</div>
+        <div class="stat-value">${fmtInt(data.row_count || 0)}</div>
+        <div class="stat-delta up">✓ Complete</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Quality Score</div>
+        <div class="stat-value">${data.quality_score || '—'}</div>
+        <div class="stat-delta neutral">/ 100</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-label">Execution Time</div>
+        <div class="stat-value mono" style="font-size:20px;">${fmtSeconds(data.execution_time_sec)}</div>
+        <div class="stat-delta neutral">Total duration</div>
+      </div>
+    `;
+  }
+
+  function startElapsedTimer() {
+    startTs = Date.now();
+    elapsedTimer = setInterval(() => {
+      const secs = ((Date.now() - startTs) / 1000).toFixed(1);
+      document.getElementById('elapsed-time').textContent = `⏱ ${secs}s elapsed`;
+    }, 500);
+  }
+
+  function addLogLine(status, custom = null) {
+    const msg = custom || `[${new Date().toLocaleTimeString()}] Pipeline stage: ${status.toUpperCase()}`;
+    logLines.push(msg);
+    const logEl = document.getElementById('live-log');
+    const colors = {
+      completed: 'var(--accent-emerald)', failed: 'var(--accent-rose)',
+      analytics: 'var(--accent-primary)', profiling: 'var(--accent-cyan)',
+    };
+    const color = colors[status] || 'var(--text-secondary)';
+    logEl.innerHTML = logLines.slice(-30).map(l =>
+      `<div style="padding:2px 0;color:${color};border-bottom:1px solid var(--border-subtle);padding-bottom:4px;margin-bottom:4px;">${l}</div>`
+    ).join('');
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function toggleLog() {
+    const el = document.getElementById('live-log');
+    el.style.display = el.style.display === 'none' ? '' : 'none';
+  }
+
+  function viewDashboard() {
+    window.location.href = 'dashboard.html';
+  }
+
+  async function retryJob() {
+    try {
+      const res = await api('POST', `/job/${currentJobId}/retry`);
+      saveCurrentJob(res.new_job_id, getCurrentJob()?.datasetName || '');
+      currentJobId = res.new_job_id;
+      document.getElementById('banner-jobid').textContent = res.new_job_id;
+      document.getElementById('btn-retry').classList.add('hidden');
+      document.getElementById('error-panel').classList.add('hidden');
+      document.getElementById('completed-panel').classList.add('hidden');
+      logLines = [];
+      showJobUI();
+      toast('Retry started', `New job: ${res.new_job_id.slice(0,8)}...`, 'info');
+      await loadJob();
+    } catch (e) {
+      toast('Retry failed', e.message, 'error');
+    }
+  }
+
+  async function downloadReport(format) {
+    if (!currentJobId) return;
+    toast('Preparing report...', '', 'info', 2000);
+    try {
+      const blob = await apiDownload('GET', `/job/${currentJobId}/download?format=${format}`);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `sparkinsight_${currentJobId.slice(0,8)}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Download started!', '', 'success');
+    } catch (e) {
+      toast('Download failed', e.message, 'error');
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SparkInsight — Job History</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    /* ── Delete confirmation modal ─────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 1000; display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px); opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: var(--bg-card); border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg); padding: 28px; max-width: 420px; width: 90%;
+      box-shadow: var(--shadow-lg); transform: translateY(12px);
+      transition: transform 0.2s;
+    }
+    .modal-overlay.active .modal-box { transform: translateY(0); }
+    .modal-icon { font-size: 36px; margin-bottom: 12px; }
+    .modal-title { font-size: 17px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+    .modal-desc  { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Action button group ──────────────────────────────────────── */
+    .action-group { display: flex; gap: 5px; align-items: center; }
+
+    /* ── Delete button ────────────────────────────────────────────── */
+    .btn-delete {
+      padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid rgba(244,63,94,0.3);
+      background: rgba(244,63,94,0.08); color: var(--accent-rose);
+      font-size: 11px; font-weight: 600; font-family: var(--font-body);
+      cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+    }
+    .btn-delete:hover { background: rgba(244,63,94,0.2); border-color: var(--accent-rose); }
+
+    /* ── Job row fade out on delete ──────────────────────────────── */
+    tr.deleting { opacity: 0.4; pointer-events: none; transition: opacity 0.3s; }
+
+    /* ── Improved stats grid ─────────────────────────────────────── */
+    .history-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px; margin-bottom: 20px;
+    }
+
+    /* ── Table row hover ─────────────────────────────────────────── */
+    .data-table tbody tr { transition: background 0.15s; }
+    .data-table tbody tr:hover { background: rgba(99,102,241,0.04); }
+
+    /* ── Job ID chip ─────────────────────────────────────────────── */
+    .job-id-chip {
+      font-family: var(--font-mono); font-size: 10.5px;
+      background: var(--bg-input); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm); padding: 2px 7px;
+      color: var(--text-secondary); cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .job-id-chip:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="firebaseConfig.js"></script>
+  <script src="script.js?v=20260327"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <header class="top-header">
+      <div>
+        <div class="header-title">Job History</div>
+        <div class="header-subtitle">All analytics jobs and their outcomes</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" onclick="loadHistory()">🔄 Refresh</button>
+        <a href="index.html" class="btn btn-primary btn-sm">+ New Analysis</a>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- Stats -->
+      <div class="history-stats" id="history-stats">
+        <div class="stat-card skeleton" style="height:88px;"></div>
+        <div class="stat-card skeleton" style="height:88px;"></div>
+        <div class="stat-card skeleton" style="height:88px;"></div>
+        <div class="stat-card skeleton" style="height:88px;"></div>
+      </div>
+
+      <!-- Filters Row -->
+      <div class="card mb-6" style="padding:14px 20px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <input type="text" class="form-input" id="search-jobs"
+            placeholder="🔍 Search by dataset or job ID..."
+            style="flex:1;min-width:200px;max-width:320px;" oninput="filterJobs()"/>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="status-filters"></div>
+          <div style="margin-left:auto;font-size:12px;color:var(--text-muted);" id="jobs-count"></div>
+        </div>
+      </div>
+
+      <!-- Jobs Table -->
+      <div class="card">
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Job ID</th>
+                <th>Dataset</th>
+                <th>Status</th>
+                <th>Quality</th>
+                <th>Records</th>
+                <th>Exec Time</th>
+                <th>Started</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="jobs-tbody">
+              <tr><td colspan="8">
+                <div class="skeleton" style="height:40px;margin:4px 0;border-radius:4px;"></div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="empty-history" class="empty-state hidden">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-title">No jobs yet</div>
+          <div class="empty-state-desc">Run your first analytics job to see history here.</div>
+          <a href="index.html" class="btn btn-primary" style="margin-top:16px;">Browse Datasets</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirmation Modal ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal-box">
+    <div class="modal-icon">🗑️</div>
+    <div class="modal-title">Delete this job?</div>
+    <div class="modal-desc" id="delete-modal-desc">
+      This will permanently remove the job and all its results from the database.
+      This action cannot be undone.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-sm btn-delete" style="font-size:12px;padding:7px 16px;" onclick="confirmDelete()">
+        🗑️ Delete Job
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  initFirebase();
+  let allJobs     = [];
+  let activeStatus = 'all';
+  let pendingDeleteId = null;
+
+  (async () => {
+    document.getElementById('sidebar').innerHTML = buildSidebar('history');
+    await requireAuth();
+    await loadHistory();
+  })();
+
+  async function loadHistory() {
+    try {
+      const data = await api('GET', '/jobs/history');
+      allJobs = data.jobs || [];
+      renderHistoryStats(allJobs);
+      renderStatusFilters(allJobs);
+      renderJobs(allJobs);
+    } catch (e) {
+      toast('Failed to load history', e.message, 'error');
+    }
+  }
+
+  function renderHistoryStats(jobs) {
+    const total     = jobs.length;
+    const completed = jobs.filter(j => j.status === 'completed').length;
+    const failed    = jobs.filter(j => j.status === 'failed').length;
+    const running   = jobs.filter(j => !['completed','failed'].includes(j.status)).length;
+    const avgTime   = completed > 0
+      ? jobs.filter(j => j.execution_time_sec).reduce((a,b) => a + (b.execution_time_sec||0), 0) / completed
+      : 0;
+
+    document.getElementById('history-stats').innerHTML = `
+      <div class="stat-card blue">
+        <div class="stat-label">Total Jobs</div>
+        <div class="stat-value">${total}</div>
+        <div class="stat-delta neutral">All time</div>
+      </div>
+      <div class="stat-card emerald">
+        <div class="stat-label">Completed</div>
+        <div class="stat-value">${completed}</div>
+        <div class="stat-delta up">${total > 0 ? (completed/total*100).toFixed(0) : 0}% success rate</div>
+      </div>
+      <div class="stat-card rose">
+        <div class="stat-label">Failed</div>
+        <div class="stat-value">${failed}</div>
+        <div class="stat-delta ${failed > 0 ? 'down' : 'neutral'}">${failed > 0 ? 'Needs attention' : 'All good'}</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-label">Avg Exec Time</div>
+        <div class="stat-value mono" style="font-size:20px;">${avgTime > 0 ? avgTime.toFixed(1)+'s' : '—'}</div>
+        <div class="stat-delta neutral">${running} running</div>
+      </div>
+    `;
+  }
+
+  function renderStatusFilters(jobs) {
+    const statuses = ['all', ...new Set(jobs.map(j => j.status))];
+    document.getElementById('status-filters').innerHTML = statuses.map(s => `
+      <button class="btn btn-sm ${s === activeStatus ? 'btn-primary' : 'btn-ghost'}"
+        onclick="setStatusFilter('${s}')">${s}</button>
+    `).join('');
+  }
+
+  function setStatusFilter(s) {
+    activeStatus = s;
+    renderStatusFilters(allJobs);
+    filterJobs();
+  }
+
+  function filterJobs() {
+    const q = document.getElementById('search-jobs').value.toLowerCase();
+    const filtered = allJobs.filter(j => {
+      const matchS = activeStatus === 'all' || j.status === activeStatus;
+      const matchQ = !q || j.dataset_name?.includes(q) || j.job_id?.includes(q);
+      return matchS && matchQ;
+    });
+    renderJobs(filtered);
+  }
+
+  function renderJobs(jobs) {
+    const tbody = document.getElementById('jobs-tbody');
+    const empty = document.getElementById('empty-history');
+    document.getElementById('jobs-count').textContent = `${jobs.length} job${jobs.length !== 1 ? 's' : ''}`;
+
+    if (!jobs.length) {
+      tbody.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+
+    tbody.innerHTML = jobs.map(j => {
+      const shortId = j.job_id?.slice(0,12) + '...';
+
+      let actionBtns = '';
+      if (j.status === 'completed') {
+        actionBtns = `
+          <button class="btn btn-primary btn-sm" onclick="viewJob('${j.job_id}')">📊 View</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadJobReport('${j.job_id}','pdf')">PDF</button>`;
+      } else if (j.status === 'failed') {
+        actionBtns = `
+          <button class="btn btn-danger btn-sm" onclick="retryJob('${j.job_id}', '${j.dataset_name}')">🔁 Retry</button>`;
+      } else {
+        actionBtns = `
+          <button class="btn btn-ghost btn-sm" onclick="trackJob('${j.job_id}', '${j.dataset_name}')">⚙️ Track</button>`;
+      }
+
+      return `
+        <tr id="row-${j.job_id}">
+          <td>
+            <span class="job-id-chip" title="${j.job_id}" onclick="copyJobId('${j.job_id}', this)">
+              ${shortId}
+            </span>
+          </td>
+          <td class="primary">${(j.dataset_name||'').replace(/_/g,' ')}</td>
+          <td>${statusBadge(j.status)}</td>
+          <td class="mono" style="color:${qualityColor(j.quality_score||0)};">
+            ${j.quality_score != null ? j.quality_score + '/100' : '—'}
+          </td>
+          <td class="mono">${j.row_count != null ? fmtInt(j.row_count) : '—'}</td>
+          <td class="mono">${j.execution_time_sec != null ? fmtSeconds(j.execution_time_sec) : '—'}</td>
+          <td style="font-size:12px;color:var(--text-muted);">${j.start_time ? new Date(j.start_time).toLocaleString() : '—'}</td>
+          <td>
+            <div class="action-group" style="justify-content:flex-end;">
+              ${actionBtns}
+              <button class="btn-delete" onclick="openDeleteModal('${j.job_id}')" title="Delete job">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ── Copy job ID to clipboard ──────────────────────────────────────────────
+  function copyJobId(jobId, el) {
+    navigator.clipboard.writeText(jobId).then(() => {
+      const orig = el.textContent;
+      el.textContent = '✅ Copied!';
+      setTimeout(() => { el.textContent = orig; }, 1500);
+    });
+  }
+
+  // ── Delete Modal ──────────────────────────────────────────────────────────
+  function openDeleteModal(jobId) {
+    pendingDeleteId = jobId;
+    const job = allJobs.find(j => j.job_id === jobId);
+    const dsName = (job?.dataset_name || '').replace(/_/g, ' ');
+    document.getElementById('delete-modal-desc').innerHTML = `
+      You are about to permanently delete job <code style="color:var(--accent-cyan);font-family:var(--font-mono);font-size:12px;">${jobId.slice(0,16)}...</code>
+      ${dsName ? `for dataset <b>${dsName}</b>` : ''}.
+      <br><br>This will remove all results and metadata. <b>This cannot be undone.</b>
+    `;
+    document.getElementById('delete-modal').classList.add('active');
+  }
+
+  function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.remove('active');
+    pendingDeleteId = null;
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const jobId = pendingDeleteId;
+    closeDeleteModal();
+
+    // Fade out row immediately
+    const row = document.getElementById(`row-${jobId}`);
+    if (row) row.classList.add('deleting');
+
+    try {
+      await api('DELETE', `/job/${jobId}`);
+      // Remove from local array
+      allJobs = allJobs.filter(j => j.job_id !== jobId);
+      renderHistoryStats(allJobs);
+      renderStatusFilters(allJobs);
+      filterJobs();
+      toast('Job deleted', 'Job and results removed successfully.', 'success');
+    } catch (e) {
+      // Restore row on failure
+      if (row) row.classList.remove('deleting');
+      toast('Delete failed', e.message, 'error');
+    }
+  }
+
+  // Close modal on overlay click
+  document.getElementById('delete-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+  });
+
+  // ── Navigation helpers ────────────────────────────────────────────────────
+  function viewJob(jobId) {
+    const job = allJobs.find(j => j.job_id === jobId);
+    saveCurrentJob(jobId, job?.dataset_name || '');
+    window.location.href = 'dashboard.html';
+  }
+
+  function trackJob(jobId, datasetName) {
+    saveCurrentJob(jobId, datasetName);
+    window.location.href = 'job_status.html';
+  }
+
+  async function retryJob(jobId, datasetName) {
+    toast('Retrying job...', '', 'info', 2000);
+    try {
+      const res = await api('POST', `/job/${jobId}/retry`);
+      saveCurrentJob(res.new_job_id, datasetName);
+      toast('Retry started!', `New job: ${res.new_job_id.slice(0,8)}...`, 'success');
+      setTimeout(() => { window.location.href = 'job_status.html'; }, 1200);
+    } catch (e) {
+      toast('Retry failed', e.message, 'error');
+    }
+  }
+
+  async function downloadJobReport(jobId, format) {
+    toast('Preparing download...', '', 'info', 2000);
+    try {
+      const blob = await apiDownload('GET', `/job/${jobId}/download?format=${format}`);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `sparkinsight_${jobId.slice(0,8)}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Download started!', '', 'success');
+    } catch (e) {
+      toast('Download failed', e.message, 'error');
+    }
+  }
+</script>
+</body>
+</html>

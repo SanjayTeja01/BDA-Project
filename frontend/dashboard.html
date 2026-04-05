@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SparkInsight — Dashboard</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    /* ── Filter Card Styles ─────────────────────────────── */
+    .filter-tab-btn {
+      padding: 5px 12px; border-radius: 99px; border: 1px solid var(--border-subtle);
+      background: var(--bg-input); color: var(--text-muted); font-size: 11px;
+      cursor: pointer; font-family: var(--font-body); transition: all 0.15s;
+    }
+    .filter-tab-btn.active, .filter-tab-btn:hover {
+      background: var(--accent-primary); color: #fff; border-color: var(--accent-primary);
+    }
+    .filter-tab-count {
+      background: rgba(255,255,255,0.25); border-radius: 99px;
+      padding: 1px 6px; font-size: 10px; margin-left: 4px;
+    }
+    .filter-card {
+      background: var(--bg-input); border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle); padding: 14px;
+      transition: border-color 0.2s;
+    }
+    .filter-card:hover { border-color: var(--accent-primary); }
+    .filter-card-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+    }
+    .filter-card-label {
+      font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .filter-type-badge { font-size: 14px; }
+    .filter-card-body { display: flex; flex-direction: column; gap: 4px; }
+    .filter-field-label { font-size: 10px; color: var(--text-muted); margin-bottom: 2px; }
+    .filter-input {
+      width: 100%; background: var(--bg-panel); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm); padding: 6px 8px; font-size: 12px;
+      color: var(--text-primary); font-family: var(--font-body); box-sizing: border-box;
+    }
+    .filter-input:focus { outline: none; border-color: var(--accent-primary); }
+    .filter-range {
+      width: 100%; accent-color: var(--accent-primary); cursor: pointer; margin: 4px 0;
+    }
+    .filter-chips {
+      display: flex; flex-wrap: wrap; gap: 5px; max-height: 120px; overflow-y: auto;
+    }
+    .filter-chip {
+      display: flex; align-items: center; gap: 4px;
+      background: var(--bg-panel); border: 1px solid var(--border-subtle);
+      border-radius: 99px; padding: 3px 9px; font-size: 11px;
+      color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
+    }
+    .filter-chip:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+    .filter-chip input { display: none; }
+    .filter-chip:has(input:checked) {
+      background: rgba(79,156,255,0.15); border-color: var(--accent-primary);
+      color: var(--accent-primary); font-weight: 600;
+    }
+    .filter-type-date   { border-top: 3px solid var(--accent-cyan); }
+    .filter-type-numeric{ border-top: 3px solid var(--accent-violet, #8b5cf6); }
+    .filter-type-category{border-top: 3px solid var(--accent-emerald); }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="firebaseConfig.js"></script>
+  <script src="script.js?v=20260327"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <header class="top-header">
+      <div>
+        <div class="header-title" id="dash-title">Analytics Dashboard</div>
+        <div class="header-subtitle" id="dash-subtitle">Loading results...</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">🔄 Reload</button>
+        <div class="dropdown">
+          <button class="btn btn-primary btn-sm" onclick="toggleDropdown()">📥 Download ▾</button>
+          <div class="dropdown-menu hidden" id="dl-menu">
+            <button class="dropdown-item" onclick="downloadPDF()">📄 PDF Report</button>
+            <button class="dropdown-item" onclick="downloadExcel()">📊 Excel Report</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content" id="dashboard-body">
+      <!-- Skeleton loading -->
+      <div id="loading-state">
+        <div class="stats-grid mb-6">
+          ${Array(6).fill('<div class="stat-card skeleton" style="height:92px;"></div>').join('')}
+        </div>
+        <div class="grid-2 mb-6">
+          <div class="chart-card skeleton" style="height:280px;"></div>
+          <div class="chart-card skeleton" style="height:280px;"></div>
+        </div>
+        <div class="chart-card skeleton mb-6" style="height:280px;"></div>
+      </div>
+
+      <!-- No job state -->
+      <div id="no-result" class="empty-state hidden">
+        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-title">No results to display</div>
+        <div class="empty-state-desc">Run an analysis job first to see your dashboard.</div>
+        <a href="index.html" class="btn btn-primary" style="margin-top:16px;">Browse Datasets</a>
+      </div>
+
+      <!-- Dashboard content -->
+      <div id="dash-content" class="hidden">
+
+        <!-- ── Summary Stats ── -->
+        <div class="stats-grid mb-6" id="summary-stats"></div>
+
+        <!-- ── Quality Score + Execution Metrics ── -->
+        <div class="grid-2 mb-6">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><span class="section-icon emerald" style="width:24px;height:24px;font-size:12px;">🏆</span> Data Quality Score</div>
+            </div>
+            <div class="quality-ring-wrapper">
+              <div class="quality-ring">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bg-input)" stroke-width="10"/>
+                  <circle id="quality-circle" cx="60" cy="60" r="50" fill="none"
+                    stroke="var(--accent-emerald)" stroke-width="10"
+                    stroke-dasharray="314" stroke-dashoffset="314"
+                    stroke-linecap="round" style="transition:stroke-dashoffset 1.2s ease;"/>
+                </svg>
+                <div class="quality-ring-text">
+                  <span class="quality-ring-score" id="quality-score-val">—</span>
+                  <span class="quality-ring-grade" id="quality-grade">Grade</span>
+                </div>
+              </div>
+              <div class="quality-components" id="quality-components"></div>
+            </div>
+            <div class="divider"></div>
+            <div id="quality-recs" style="display:flex;flex-direction:column;gap:6px;"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><span>⚡</span> Execution Metrics</div>
+            </div>
+            <div class="metrics-grid mb-4" id="exec-metrics-grid"></div>
+            <div id="stage-timeline" class="stage-timeline"></div>
+          </div>
+        </div>
+
+        <!-- ── Section: Analytics ── -->
+        <div class="section-divider">
+          <div class="section-divider-label">📊 Analytics</div>
+          <div class="section-divider-line"></div>
+        </div>
+
+        <!-- ── Charts Row 1 ── -->
+        <div class="grid-2 mb-6">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div><div class="chart-title">📊 Category Distribution</div><div class="chart-subtitle" id="cat-chart-sub"></div></div>
+              <div class="tag" id="cat-chart-type-tag"></div>
+            </div>
+            <div class="chart-body" style="height:240px;">
+              <canvas id="chart-category"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div><div class="chart-title">📈 Time Series Trend</div><div class="chart-subtitle" id="time-chart-sub"></div></div>
+              <div class="tag" id="time-chart-type-tag"></div>
+            </div>
+            <div class="chart-body" style="height:240px;">
+              <canvas id="chart-timeseries"></canvas>
+            </div>
+            <div id="no-time" class="empty-state hidden" style="padding:30px 0;">
+              <div class="empty-state-desc">No time column in this dataset</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Charts Row 2 ── -->
+        <div class="grid-2 mb-6">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div><div class="chart-title">📉 Value Distribution</div><div class="chart-subtitle" id="dist-chart-sub"></div></div>
+            </div>
+            <div class="chart-body" style="height:220px;">
+              <canvas id="chart-histogram"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div><div class="chart-title">📅 Yearly Trend</div><div class="chart-subtitle" id="yearly-chart-sub"></div></div>
+            </div>
+            <div class="chart-body" style="height:220px;">
+              <canvas id="chart-yearly"></canvas>
+            </div>
+            <div id="no-yearly" class="empty-state hidden" style="padding:30px 0;">
+              <div class="empty-state-desc">No yearly data available</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Section: Correlation ── -->
+        <div class="section-divider">
+          <div class="section-divider-label">🔗 Correlation</div>
+          <div class="section-divider-line"></div>
+        </div>
+
+        <!-- ── Correlation Heatmap ── -->
+        <div class="chart-card mb-6" id="corr-section">
+          <div class="chart-header">
+            <div><div class="chart-title">🔗 Correlation Matrix</div><div class="chart-subtitle" id="corr-sub"></div></div>
+            <div class="tag">Heuristic Visualization</div>
+          </div>
+          <div id="corr-heatmap-container" style="overflow-x:auto;"></div>
+        </div>
+
+        <!-- ── Category Table ── -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div class="card-title">📋 Category Analysis Table</div>
+            <div class="tag" id="cat-table-meta"></div>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table" id="category-table">
+              <thead><tr id="cat-thead"></tr></thead>
+              <tbody id="cat-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── Section: Insights ── -->
+        <div class="section-divider">
+          <div class="section-divider-label">💡 Insights & Reasoning</div>
+          <div class="section-divider-line"></div>
+        </div>
+
+        <!-- ── Insights ── -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div class="card-title">💡 Automated Insights</div>
+            <div class="tag" id="insights-count-tag"></div>
+          </div>
+          <div class="insights-list" id="insights-list"></div>
+        </div>
+
+        <!-- ── Viz Reasoning ── -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div class="card-title">🎨 Visualization Reasoning</div>
+            <div class="tag">Heuristic Rules</div>
+          </div>
+          <div id="viz-reasoning" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+
+        <!-- ── Section: Dataset Info ── -->
+        <div class="section-divider">
+          <div class="section-divider-label">🗄️ Dataset & Profiling</div>
+          <div class="section-divider-line"></div>
+        </div>
+
+        <!-- ── Dataset & Profiling Info ── -->
+        <div class="grid-2 mb-6">
+          <div class="card">
+            <div class="card-header"><div class="card-title">🗄️ Dataset Info</div><button class="btn btn-ghost btn-sm" id="preview-btn" onclick="openDatasetPreview()" style="font-size:11px;padding:4px 10px;">👁️ Preview Data</button></div>
+            <div id="dataset-info-table"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🔍 Profiling Summary</div></div>
+            <div id="profiling-info"></div>
+          </div>
+        </div>
+
+        <!-- ── Section: Columns ── -->
+        <div class="section-divider">
+          <div class="section-divider-label">📐 Column Profiles</div>
+          <div class="section-divider-line"></div>
+        </div>
+
+        <!-- ── Column Profiles Table ── -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div class="card-title">📐 Column Profiles</div>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Column</th><th>Type</th><th>Null %</th><th>Unique</th>
+                  <th>Min</th><th>Max</th><th>Mean</th><th>Skew</th>
+                </tr>
+              </thead>
+              <tbody id="col-profiles-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── Section: Filters ── -->
+        <div class="section-divider">
+          <div class="section-divider-label">🔎 Dynamic Filters</div>
+          <div class="section-divider-line"></div>
+        </div>
+
+        <!-- ── Dynamic Filters (bottom) ── -->
+        <div class="card mb-6" id="filter-section" style="border:1.5px solid var(--accent-primary);border-radius:var(--radius-lg);">
+          <div class="card-header" style="background:var(--bg-panel);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:14px 20px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:18px;">🔎</span>
+              <div>
+                <div class="card-title" style="margin:0;">Refine Your Analysis</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Apply filters and re-run analysis on the cleaned dataset — profiling and cleaning are not repeated</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-ghost btn-sm" onclick="resetFilters()" title="Clear all filters">↺ Reset</button>
+              <button class="btn btn-primary btn-sm" onclick="applyFilters()">⚡ Apply &amp; Re-Analyze</button>
+            </div>
+          </div>
+
+          <!-- Active filter summary bar -->
+          <div id="filter-active-bar" style="display:none;background:rgba(79,156,255,0.08);border-bottom:1px solid var(--border-subtle);padding:8px 20px;font-size:11px;color:var(--accent-primary);">
+            <span id="filter-active-text">No active filters</span>
+          </div>
+
+          <div style="padding:20px;">
+            <!-- Filter tabs by type -->
+            <div id="filter-tabs" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+              <button class="filter-tab-btn active" onclick="showFilterTab('all',this)">All Filters</button>
+              <button class="filter-tab-btn" onclick="showFilterTab('date',this)">📅 Date Range</button>
+              <button class="filter-tab-btn" onclick="showFilterTab('numeric',this)">🔢 Numeric</button>
+              <button class="filter-tab-btn" onclick="showFilterTab('category',this)">🏷️ Category</button>
+            </div>
+
+            <div class="filter-grid" id="filter-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
+
+            <div id="filter-empty" style="display:none;text-align:center;padding:30px;color:var(--text-muted);font-size:13px;">
+              No filters available for this dataset schema.
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /dash-content -->
+    </div>
+  </div>
+</div>
+
+<script>
+  initFirebase();
+  let resultData  = null;
+  let chartInstances = {};
+  let activeFilters  = {};
+  let currentJobId   = null;
+
+  (async () => {
+    document.getElementById('sidebar').innerHTML = buildSidebar('dashboard');
+    await requireAuth();
+    applyChartDefaults();
+    await loadDashboard();
+  })();
+
+  async function loadDashboard() {
+    const saved = getCurrentJob();
+    if (!saved) {
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('no-result').classList.remove('hidden');
+      return;
+    }
+    currentJobId = saved.jobId;
+
+    try {
+      resultData = await api('GET', `/job/${currentJobId}/result`);
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('dash-content').classList.remove('hidden');
+      renderAll(resultData);
+    } catch (e) {
+      document.getElementById('loading-state').classList.add('hidden');
+      if (e.message.includes('not completed')) {
+        document.getElementById('no-result').classList.remove('hidden');
+        document.getElementById('no-result').querySelector('.empty-state-desc').textContent =
+          'Job is still running. Check Job Status for progress.';
+      } else {
+        toast('Failed to load results', e.message, 'error');
+        document.getElementById('no-result').classList.remove('hidden');
+      }
+    }
+  }
+
+  function renderAll(r) {
+    const ds = r.dataset_info || {};
+    document.getElementById('dash-title').textContent = (ds.dataset_name || 'Dashboard').replace(/_/g,' ');
+    document.getElementById('dash-subtitle').textContent = `${ds.category || ''} • v${ds.version || ''} • ${ds.estimated_size || ''}`;
+    renderSummaryStats(r);
+    renderQualityScore(r.quality_score || {});
+    renderExecMetrics(r.execution_metrics || {});
+    renderFilters(r.filter_spec || []);
+    renderCategoryChart(r.category_analysis || {});
+    renderTimeChart(r.time_analysis || {});
+    renderHistogram(r.distribution_analysis || {});
+    renderYearlyChart(r.time_analysis || {});
+    renderCorrelationHeatmap(r.correlation_analysis || {});
+    renderCategoryTable(r.category_analysis || {});
+    renderInsights(r.insights || []);
+    renderVizReasoning(r.visualization_recommendations || []);
+    renderDatasetInfo(r.dataset_info || {});
+    renderProfilingInfo(r.profiling_report || {});
+    renderColumnProfiles(r.profiling_report || {});
+    renderBreadcrumb(r);
+  }
+
+  function renderBreadcrumb(r) {
+    const ds  = r.dataset_info  || {};
+    const job = r.job_info      || {};
+    const em  = r.execution_metrics || {};
+    const existing = document.getElementById('dash-breadcrumb');
+    if (existing) existing.remove();
+    const bc = document.createElement('div');
+    bc.id = 'dash-breadcrumb';
+    bc.className = 'dash-breadcrumb';
+    bc.innerHTML = `
+      <a href="index.html" style="color:var(--text-muted);transition:color 0.15s;" onmouseover="this.style.color='var(--accent-primary)'" onmouseout="this.style.color='var(--text-muted)'">Datasets</a>
+      <span>›</span>
+      <span style="color:var(--text-secondary);">${(ds.dataset_name||'').replace(/_/g,' ')}</span>
+      <span>›</span>
+      <span style="font-family:var(--font-mono);font-size:10px;">${(job.job_id||'').slice(0,10)}…</span>
+      <span style="margin-left:auto;color:var(--text-faint);">Spark v${em.spark_version||'—'}</span>
+    `;
+    const header = document.querySelector('.top-header');
+    if (header) header.after(bc);
+  }
+
+  // ── Summary Stats ─────────────────────────────────────────────────────
+  function renderSummaryStats(r) {
+    const sm = r.summary_metrics || {};
+    const q  = r.quality_score   || {};
+    const em = r.execution_metrics || {};
+    const p  = r.profiling_report  || {};
+    const cs = r.cleaning_summary  || {};
+
+    document.getElementById('summary-stats').innerHTML = `
+      <div class="stat-card blue">
+        <div class="stat-label">Total Records</div>
+        <div class="stat-value">${fmtNum(sm.total_records)}</div>
+        <div class="stat-delta neutral">${fmtInt(p.column_count || 0)} columns</div>
+      </div>
+      <div class="stat-card violet">
+        <div class="stat-label">${sm.primary_metric || 'Primary Metric'} Total</div>
+        <div class="stat-value">${fmtNum(sm.total)}</div>
+        <div class="stat-delta neutral">Avg: ${fmtNum(sm.average)}</div>
+      </div>
+      <div class="stat-card emerald">
+        <div class="stat-label">Quality Score</div>
+        <div class="stat-value">${q.overall_score || '—'}</div>
+        <div class="stat-delta ${(q.overall_score||0)>=70?'up':'down'}">Grade ${q.grade || '?'}</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-label">Exec Time</div>
+        <div class="stat-value mono" style="font-size:20px;">${fmtSeconds(em.total_execution_time_sec)}</div>
+        <div class="stat-delta neutral">${fmtInt(em.records_per_second)}/s</div>
+      </div>
+      <div class="stat-card teal">
+        <div class="stat-label">Rows After Cleaning</div>
+        <div class="stat-value">${fmtNum(cs.final_rows)}</div>
+        <div class="stat-delta neutral">${fmtInt(cs.rows_removed||0)} removed</div>
+      </div>
+      <div class="stat-card rose">
+        <div class="stat-label">Max ${sm.primary_metric || 'Value'}</div>
+        <div class="stat-value">${fmtNum(sm.maximum)}</div>
+        <div class="stat-delta neutral">Min: ${fmtNum(sm.minimum)}</div>
+      </div>
+    `;
+  }
+
+  // ── Quality Score Ring ────────────────────────────────────────────────
+  function renderQualityScore(q) {
+    const score = q.overall_score || 0;
+    const circ  = document.getElementById('quality-circle');
+    const offset = 314 - (score / 100) * 314;
+    circ.style.strokeDashoffset = offset;
+    circ.style.stroke = qualityColor(score);
+    document.getElementById('quality-score-val').textContent = score;
+    document.getElementById('quality-score-val').style.color = qualityColor(score);
+    document.getElementById('quality-grade').textContent = `Grade ${q.grade || '?'}`;
+
+    const comp = q.component_breakdown || {};
+    document.getElementById('quality-components').innerHTML = Object.entries(comp).map(([k,v]) => `
+      <div class="quality-component">
+        <div class="qc-label">${k.replace(/_/g,' ')}</div>
+        <div class="qc-bar-bg"><div class="qc-bar-fill" style="width:${v}%;background:${qualityColor(v)};"></div></div>
+        <div class="qc-value">${v}</div>
+      </div>
+    `).join('');
+
+    document.getElementById('quality-recs').innerHTML = (q.quality_recommendations||[]).map(r => `
+      <div style="font-size:11px;color:var(--text-muted);padding:4px 0;border-bottom:1px solid var(--border-subtle);">
+        <span style="color:var(--accent-amber);">•</span> ${r}
+      </div>
+    `).join('');
+  }
+
+  // ── Execution Metrics ─────────────────────────────────────────────────
+  function renderExecMetrics(em) {
+    document.getElementById('exec-metrics-grid').innerHTML = [
+      { label:'Total Time',       value: fmtSeconds(em.total_execution_time_sec) },
+      { label:'Records/sec',      value: fmtInt(em.records_per_second) },
+      { label:'Partitions',       value: em.partition_count || '—' },
+      { label:'Records',          value: fmtNum(em.records_processed) },
+      { label:'Spark Version',    value: em.spark_version || '—' },
+      { label:'Adaptive Exec',    value: em.adaptive_execution_enabled ? '✅ On' : '❌ Off' },
+    ].map(m => `
+      <div class="metric-item">
+        <div class="metric-item-label">${m.label}</div>
+        <div class="metric-item-value">${m.value}</div>
+      </div>
+    `).join('');
+
+    const stages = em.stage_times || {};
+    const maxTime = Math.max(...Object.values(stages), 0.001);
+    document.getElementById('stage-timeline').innerHTML = Object.entries(stages).map(([s,t]) => `
+      <div class="stage-item">
+        <div class="stage-name">${s.replace(/_/g,' ')}</div>
+        <div class="stage-bar-bg"><div class="stage-bar-fill" style="width:${(t/maxTime)*100}%;"></div></div>
+        <div class="stage-time">${t}s</div>
+      </div>
+    `).join('');
+  }
+
+  // ── Dynamic Filters ───────────────────────────────────────────────────
+  function renderFilters(filters) {
+    const section = document.getElementById('filter-section');
+    const grid    = document.getElementById('filter-grid');
+    const empty   = document.getElementById('filter-empty');
+
+    // Only show useful filter types — skip high-cardinality text searches
+    // and boolean toggles as they're rarely useful in analytics context
+    const usefulFilters = filters.filter(f =>
+      ['date_range','range_slider','multi_select'].includes(f.filter_type)
+    ).slice(0, 18);
+
+    if (!usefulFilters.length) {
+      section.style.display = 'none';
+      return;
+    }
+
+    window._filterSpec = usefulFilters;
+
+    // Show tab counts
+    const dateCnt = usefulFilters.filter(f=>f.filter_type==='date_range').length;
+    const numCnt  = usefulFilters.filter(f=>f.filter_type==='range_slider').length;
+    const catCnt  = usefulFilters.filter(f=>f.filter_type==='multi_select').length;
+
+    document.querySelectorAll('.filter-tab-btn').forEach(btn => {
+      const tab = btn.getAttribute('onclick')?.match(/'(\w+)'/)?.[1];
+      if (tab === 'date'    && dateCnt) btn.innerHTML = `📅 Date Range <span class="filter-tab-count">${dateCnt}</span>`;
+      if (tab === 'numeric' && numCnt)  btn.innerHTML = `🔢 Numeric <span class="filter-tab-count">${numCnt}</span>`;
+      if (tab === 'category'&& catCnt)  btn.innerHTML = `🏷️ Category <span class="filter-tab-count">${catCnt}</span>`;
+    });
+
+    grid.innerHTML = usefulFilters.map(f => {
+      const typeClass = f.filter_type === 'date_range' ? 'filter-type-date'
+                      : f.filter_type === 'range_slider' ? 'filter-type-numeric'
+                      : 'filter-type-category';
+      let inner = '';
+
+      if (f.filter_type === 'date_range') {
+        inner = `
+          <div class="filter-field-label">From</div>
+          <input type="date" class="filter-input" id="f_${f.column}_start"
+            value="${(f.min_date||'').slice(0,10)}"
+            onchange="trackFilterChange('${f.column}')" />
+          <div class="filter-field-label" style="margin-top:8px;">To</div>
+          <input type="date" class="filter-input" id="f_${f.column}_end"
+            value="${(f.max_date||'').slice(0,10)}"
+            onchange="trackFilterChange('${f.column}')" />
+        `;
+      } else if (f.filter_type === 'range_slider') {
+        const mn = f.min ?? 0;
+        const mx = f.max ?? 100;
+        inner = `
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-bottom:4px;">
+            <span>Min: <b style="color:var(--text-secondary);">${fmtNum(mn)}</b></span>
+            <span>Max: <b style="color:var(--accent-primary);" id="f_${f.column}_val">${fmtNum(mx)}</b></span>
+          </div>
+          <input type="range" class="filter-range" id="f_${f.column}_range"
+            min="${mn}" max="${mx}" step="${f.step||1}" value="${mx}"
+            oninput="document.getElementById('f_${f.column}_val').textContent=fmtNum(this.value);trackFilterChange('${f.column}')" />
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-muted);margin-top:3px;">
+            <span>${fmtNum(mn)}</span><span>${fmtNum(mx)}</span>
+          </div>
+        `;
+      } else if (f.filter_type === 'multi_select') {
+        const opts = (f.options || []).slice(0, 30);
+        inner = `
+          <div class="filter-chips" id="chips_${f.column}">
+            ${opts.map(o => `
+              <label class="filter-chip">
+                <input type="checkbox" value="${o}" data-col="${f.column}"
+                  onchange="trackFilterChange('${f.column}')">
+                <span>${o}</span>
+              </label>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="filter-card ${typeClass}" data-filter-type="${f.filter_type}">
+          <div class="filter-card-header">
+            <div class="filter-card-label">${f.label}</div>
+            <div class="filter-type-badge">${
+              f.filter_type === 'date_range' ? '📅' :
+              f.filter_type === 'range_slider' ? '🔢' : '🏷️'
+            }</div>
+          </div>
+          <div class="filter-card-body">${inner}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function showFilterTab(type, btn) {
+    document.querySelectorAll('.filter-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.filter-card').forEach(card => {
+      if (type === 'all') {
+        card.style.display = '';
+      } else {
+        const ft = card.dataset.filterType;
+        const match = (type==='date' && ft==='date_range')
+                   || (type==='numeric' && ft==='range_slider')
+                   || (type==='category' && ft==='multi_select');
+        card.style.display = match ? '' : 'none';
+      }
+    });
+  }
+
+  function trackFilterChange(col) {
+    // Count active filters for summary bar
+    let active = [];
+    for (const f of (window._filterSpec||[])) {
+      if (f.filter_type === 'date_range') {
+        const s = document.getElementById(`f_${f.column}_start`)?.value;
+        const e = document.getElementById(`f_${f.column}_end`)?.value;
+        if (s || e) active.push(f.label);
+      } else if (f.filter_type === 'range_slider') {
+        const v = parseFloat(document.getElementById(`f_${f.column}_range`)?.value);
+        if (v < (f.max ?? 100)) active.push(f.label);
+      } else if (f.filter_type === 'multi_select') {
+        const checked = document.querySelectorAll(`#chips_${f.column} input:checked`);
+        if (checked.length) active.push(`${f.label} (${checked.length})`);
+      }
+    }
+    const bar = document.getElementById('filter-active-bar');
+    const txt = document.getElementById('filter-active-text');
+    if (active.length) {
+      bar.style.display = 'block';
+      txt.textContent = `Active filters: ${active.join('  •  ')}`;
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  async function applyFilters() {
+    if (!currentJobId || !window._filterSpec) return;
+    const filters = {};
+    for (const f of (window._filterSpec||[])) {
+      if (f.filter_type === 'date_range') {
+        const s = document.getElementById(`f_${f.column}_start`)?.value;
+        const e = document.getElementById(`f_${f.column}_end`)?.value;
+        if (s || e) filters[f.column] = { start: s||null, end: e||null };
+      } else if (f.filter_type === 'range_slider') {
+        const v = document.getElementById(`f_${f.column}_range`)?.value;
+        if (v && parseFloat(v) < (f.max ?? 100)) filters[f.column] = { max: parseFloat(v), min: f.min };
+      } else if (f.filter_type === 'multi_select') {
+        const checked = document.querySelectorAll(`#chips_${f.column} input:checked`);
+        const vals = [...checked].map(c => c.value);
+        if (vals.length) filters[f.column] = vals;
+      }
+    }
+
+    toast('Applying filters...', 'Starting new analysis job with filters', 'info', 2500);
+    try {
+      const ds = resultData?.dataset_info?.dataset_name;
+      if (!ds) return;
+      const res = await api('POST', `/analyze/${ds}`, { filters });
+      saveCurrentJob(res.job_id, ds);
+      currentJobId = res.job_id;
+      toast('Filter job started!', 'Refreshing in 3s...', 'success');
+      setTimeout(loadDashboard, 3000);
+    } catch (e) {
+      toast('Filter failed', e.message, 'error');
+    }
+  }
+
+  function resetFilters() {
+    document.querySelectorAll('.filter-input').forEach(el => { el.value = ''; });
+    document.querySelectorAll('.filter-range').forEach(el => {
+      el.value = el.max;
+      const valEl = document.getElementById(el.id.replace('_range','_val'));
+      if (valEl) valEl.textContent = fmtNum(el.max);
+    });
+    document.querySelectorAll('.filter-chips input[type=checkbox]').forEach(cb => { cb.checked = false; });
+    document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+    document.getElementById('filter-active-bar').style.display = 'none';
+  }
+
+  // ── Category Chart ────────────────────────────────────────────────────
+  function renderCategoryChart(cat) {
+    if (!cat.categories || !cat.categories.length) return;
+    const labels = cat.categories.map(c=>c.category);
+    const data   = cat.categories.map(c=>c.count);
+    const n = labels.length;
+
+    destroyChart('chart-category');
+    document.getElementById('cat-chart-sub').textContent = `${cat.column} • ${cat.total_categories} unique values`;
+
+    const isPie = n <= 6;
+    document.getElementById('cat-chart-type-tag').textContent = isPie ? 'Pie Chart' : 'Bar Chart';
+
+    chartInstances['chart-category'] = new Chart(
+      document.getElementById('chart-category').getContext('2d'), {
+        type: isPie ? 'pie' : 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Count',
+            data,
+            backgroundColor: CHART_COLORS.slice(0, n),
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderRadius: isPie ? 0 : 5,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: isPie, position: 'right', labels: { font:{size:11} } },
+          },
+          scales: isPie ? {} : {
+            x: { grid:{color:'rgba(99,179,255,0.05)'} },
+            y: { grid:{color:'rgba(99,179,255,0.05)'}, beginAtZero:true }
+          }
+        }
+      }
+    );
+  }
+
+  // ── Time Series Chart ─────────────────────────────────────────────────
+  function renderTimeChart(time) {
+    if (!time.available) {
+      document.getElementById('no-time').classList.remove('hidden');
+      document.getElementById('chart-timeseries').classList.add('hidden');
+      return;
+    }
+    const monthly = time.monthly || [];
+    const labels  = monthly.map(r=>r.period);
+    const data    = monthly.map(r=>r.total||0);
+
+    destroyChart('chart-timeseries');
+    document.getElementById('time-chart-sub').textContent = `${time.time_column} • Monthly aggregation`;
+    document.getElementById('time-chart-type-tag').textContent = data.length > 24 ? 'Area Chart' : 'Line Chart';
+
+    const ctx = document.getElementById('chart-timeseries').getContext('2d');
+    chartInstances['chart-timeseries'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Monthly Total',
+          data,
+          borderColor: '#4f9cff',
+          backgroundColor: chartGradient(ctx, '#4f9cff', '#00d4ff'),
+          fill: true,
+          tension: 0.4,
+          pointRadius: data.length > 30 ? 0 : 3,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{
+          x:{ grid:{color:'rgba(99,179,255,0.05)'}, ticks:{maxRotation:45,font:{size:9}} },
+          y:{ grid:{color:'rgba(99,179,255,0.05)'}, beginAtZero:false }
+        }
+      }
+    });
+  }
+
+  // ── Histogram ─────────────────────────────────────────────────────────
+  function renderHistogram(dist) {
+    if (!dist.available) return;
+    const bins   = dist.histogram_bins || [];
+    const labels = bins.map(b=>`${fmtNum(b.range_start)}`);
+    const data   = bins.map(b=>b.count);
+
+    destroyChart('chart-histogram');
+    document.getElementById('dist-chart-sub').textContent = `${dist.column} • ${bins.length} bins`;
+
+    chartInstances['chart-histogram'] = new Chart(
+      document.getElementById('chart-histogram').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets:[{
+            label:'Count', data,
+            backgroundColor: 'rgba(139,92,246,0.6)',
+            borderColor: '#8b5cf6',
+            borderWidth:1, borderRadius:2, barPercentage:1, categoryPercentage:1,
+          }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false} },
+          scales:{
+            x:{ grid:{display:false}, ticks:{maxRotation:0,font:{size:9},maxTicksLimit:8} },
+            y:{ grid:{color:'rgba(99,179,255,0.05)'}, beginAtZero:true }
+          }
+        }
+      }
+    );
+  }
+
+  // ── Yearly Chart ──────────────────────────────────────────────────────
+  function renderYearlyChart(time) {
+    if (!time.available || !time.yearly?.length) {
+      document.getElementById('no-yearly').classList.remove('hidden');
+      document.getElementById('chart-yearly').classList.add('hidden');
+      return;
+    }
+    const yearly = time.yearly;
+    const labels = yearly.map(r=>String(r.year));
+    const data   = yearly.map(r=>r.total||0);
+
+    destroyChart('chart-yearly');
+    document.getElementById('yearly-chart-sub').textContent = `Year-over-year aggregation`;
+
+    chartInstances['chart-yearly'] = new Chart(
+      document.getElementById('chart-yearly').getContext('2d'), {
+        type: 'bar',
+        data:{
+          labels,
+          datasets:[{
+            label:'Yearly Total', data,
+            backgroundColor: yearly.map((_,i) => CHART_COLORS[i % CHART_COLORS.length] + 'cc'),
+            borderColor: 'transparent', borderRadius: 5,
+          }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false} },
+          scales:{
+            x:{ grid:{display:false} },
+            y:{ grid:{color:'rgba(99,179,255,0.05)'}, beginAtZero:true }
+          }
+        }
+      }
+    );
+  }
+
+  // ── Correlation Heatmap ───────────────────────────────────────────────
+  function renderCorrelationHeatmap(corr) {
+    const container = document.getElementById('corr-heatmap-container');
+    if (!corr.available) {
+      container.innerHTML = `<div class="empty-state" style="padding:30px;"><div class="empty-state-desc">${corr.reason||'Not available'}</div></div>`;
+      return;
+    }
+    const cols   = corr.columns || [];
+    const matrix = corr.matrix  || [];
+    document.getElementById('corr-sub').textContent = `${cols.length} numeric columns analyzed`;
+
+    const colMap = {};
+    matrix.forEach(row => { colMap[row.column] = row.correlations; });
+
+    container.innerHTML = `
+      <table class="data-table heatmap-table" style="border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr>
+            <th style="background:var(--bg-panel);"></th>
+            ${cols.map(c=>`<th style="background:var(--bg-panel);padding:8px;text-align:center;white-space:nowrap;">${c.slice(0,10)}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${cols.map(r=>`
+            <tr>
+              <td style="font-weight:600;color:var(--text-secondary);padding:8px;background:var(--bg-panel);white-space:nowrap;">${r.slice(0,10)}</td>
+              ${cols.map(c=>{
+                const v = colMap[r]?.[c];
+                const bg = corrBg(v);
+                const color = corrColor(v);
+                return `<td style="background:${bg};color:${color};text-align:center;padding:8px;width:60px;">${v !== null && v !== undefined ? v.toFixed(2) : '—'}</td>`;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // ── Category Table ────────────────────────────────────────────────────
+  function renderCategoryTable(cat) {
+    if (!cat.categories?.length) return;
+    const hasTotals = 'total' in cat.categories[0];
+    document.getElementById('cat-table-meta').textContent = `${cat.column} • ${cat.total_categories} unique`;
+
+    document.getElementById('cat-thead').innerHTML = `
+      <th>Rank</th><th>Category</th><th>Count</th><th>Percentage</th>
+      ${hasTotals ? '<th>Total</th><th>Average</th>' : ''}
+    `;
+    document.getElementById('cat-tbody').innerHTML = cat.categories.map((c,i) => `
+      <tr>
+        <td class="mono">#${c.rank||i+1}</td>
+        <td class="primary">${c.category}</td>
+        <td class="mono">${fmtInt(c.count)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;background:var(--bg-input);border-radius:99px;height:5px;min-width:60px;">
+              <div style="width:${c.percentage}%;background:var(--gradient-brand);height:5px;border-radius:99px;"></div>
+            </div>
+            <span class="mono" style="width:40px;text-align:right;">${c.percentage}%</span>
+          </div>
+        </td>
+        ${hasTotals ? `<td class="mono">${fmtNum(c.total)}</td><td class="mono">${fmtNum(c.average)}</td>` : ''}
+      </tr>
+    `).join('');
+  }
+
+  // ── Insights ──────────────────────────────────────────────────────────
+  function renderInsights(insights) {
+    document.getElementById('insights-count-tag').textContent = `${insights.length} insights`;
+    document.getElementById('insights-list').innerHTML = insights.map(i => `
+      <div class="insight-item ${i.severity||'info'}">
+        <div class="insight-dot"></div>
+        <div>
+          <div class="insight-title">${i.title}</div>
+          <div class="insight-detail">${i.detail}</div>
+        </div>
+      </div>
+    `).join('') || '<div class="empty-state-desc" style="padding:20px;">No insights generated.</div>';
+  }
+
+  // ── Viz Reasoning ─────────────────────────────────────────────────────
+  function renderVizReasoning(recs) {
+    document.getElementById('viz-reasoning').innerHTML = recs.map(r => `
+      <div style="display:flex;gap:12px;padding:10px 14px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+        <span style="font-size:16px;">📊</span>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:3px;">
+            ${r.title} <span class="tag" style="margin-left:6px;">${r.chart_type}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);">${r.reasoning}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ── Dataset Info ──────────────────────────────────────────────────────
+  function renderDatasetInfo(ds) {
+    const fields = [
+      ['Name',           ds.dataset_name,                '🗄️'],
+      ['Category',       ds.category,                    '📂'],
+      ['Format',         ds.format?.toUpperCase(),       '📄'],
+      ['Estimated Size', ds.estimated_size,              '💾'],
+      ['Version',        ds.version,                     '🔖'],
+      ['Primary Metric', ds.primary_metric,              '📊'],
+      ['Time Column',    ds.time_column||'—',            '📅'],
+      ['Description',    ds.description||'—',            '📝'],
+    ];
+    document.getElementById('dataset-info-table').innerHTML = fields.map(([k,v,icon])=>`
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-subtle);">
+        <span style="font-size:14px;flex-shrink:0;margin-top:1px;">${icon}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">${k}</div>
+          <div style="font-size:12.5px;color:var(--text-primary);font-weight:500;word-break:break-word;">${v||'—'}</div>
+        </div>
+      </div>
+    `).join('');
+    // Enable the preview button now that we have dataset info
+    const btn = document.getElementById('preview-btn');
+    if (btn) btn.style.display = '';
+  }
+
+  function renderProfilingInfo(p) {
+    const fields = [
+      ['Total Rows', fmtInt(p.row_count)], ['Columns', p.column_count],
+      ['Numeric Cols', p.numeric_columns?.length||0], ['Categorical Cols', p.categorical_columns?.length||0],
+      ['Date Cols', p.date_columns?.length||0], ['High Cardinality', p.high_cardinality_columns?.length||0],
+    ];
+    document.getElementById('profiling-info').innerHTML = fields.map(([k,v])=>`
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+        <span style="font-size:12px;color:var(--text-muted);">${k}</span>
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--accent-cyan);">${v}</span>
+      </div>
+    `).join('');
+  }
+
+  // ── Column Profiles Table ─────────────────────────────────────────────
+  function renderColumnProfiles(p) {
+    const profiles = p.column_profiles || [];
+    document.getElementById('col-profiles-body').innerHTML = profiles.map(col => {
+      const ns = col.numeric_stats || {};
+      const sk = col.skew_info || {};
+      return `
+        <tr>
+          <td class="primary">${col.column}</td>
+          <td><span class="tag">${col.column_type}</span></td>
+          <td class="mono" style="color:${col.null_pct>20?'var(--accent-rose)':'var(--accent-emerald)'};">${col.null_pct}%</td>
+          <td class="mono">${fmtInt(col.unique_count)}</td>
+          <td class="mono">${ns.min!=null?fmtNum(ns.min):'—'}</td>
+          <td class="mono">${ns.max!=null?fmtNum(ns.max):'—'}</td>
+          <td class="mono">${ns.mean!=null?fmtNum(ns.mean):'—'}</td>
+          <td>
+            ${sk.is_skewed
+              ? `<span style="color:var(--accent-amber);font-size:11px;">${sk.direction} (${sk.skew_approx})</span>`
+              : '<span style="color:var(--text-muted);font-size:11px;">symmetric</span>'
+            }
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ── Download ──────────────────────────────────────────────────────────
+  async function downloadPDF() {
+    toggleDropdown();
+    if (!currentJobId) return;
+    toast('Generating PDF...', 'Collecting chart images', 'info', 2500);
+
+    const chartImages = [];
+    for (const [id, chart] of Object.entries(chartInstances)) {
+      const canvas = document.getElementById(id);
+      if (canvas) {
+        chartImages.push({ title: id.replace('chart-','').replace(/-/g,' '), image: canvas.toDataURL('image/png') });
+      }
+    }
+
+    try {
+      const blob = await apiDownload('POST', `/job/${currentJobId}/download/pdf-with-charts`, { chart_images: chartImages });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = `sparkinsight_${currentJobId.slice(0,8)}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+      toast('PDF downloaded!', '', 'success');
+    } catch (e) {
+      toast('PDF generation failed', e.message, 'error');
+    }
+  }
+
+  async function downloadExcel() {
+    toggleDropdown();
+    if (!currentJobId) return;
+    toast('Generating Excel...', '', 'info', 2000);
+    try {
+      const blob = await apiDownload('GET', `/job/${currentJobId}/download?format=excel`);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = `sparkinsight_${currentJobId.slice(0,8)}.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+      toast('Excel downloaded!', '', 'success');
+    } catch (e) {
+      toast('Excel generation failed', e.message, 'error');
+    }
+  }
+
+  function toggleDropdown() {
+    document.getElementById('dl-menu').classList.toggle('hidden');
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.dropdown')) {
+      document.getElementById('dl-menu')?.classList.add('hidden');
+    }
+  });
+
+  // ── Chart Cleanup ─────────────────────────────────────────────────────
+  function destroyChart(id) {
+    if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+  }
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     DATASET PREVIEW MODAL
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="preview-modal" style="z-index:1100;">
+  <div class="modal-box" style="max-width:900px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0;">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--text-primary);">👁️ Dataset Preview</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="preview-meta">Loading...</div>
+      </div>
+      <button onclick="closePreviewModal()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:20px;padding:4px 8px;border-radius:var(--radius-sm);transition:color 0.15s;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+    </div>
+    <!-- Search + row count -->
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-shrink:0;">
+      <input type="text" id="preview-search" placeholder="🔍 Filter rows..."
+        style="flex:1;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;color:var(--text-primary);font-family:var(--font-body);outline:none;"
+        oninput="filterPreviewRows()"
+        onfocus="this.style.borderColor='var(--accent-primary)'"
+        onblur="this.style.borderColor='var(--border-subtle)'"/>
+      <div style="font-size:11px;color:var(--text-muted);white-space:nowrap;" id="preview-row-count"></div>
+    </div>
+    <!-- Table -->
+    <div id="preview-body" style="overflow:auto;flex:1;border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+      <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ── Modal overlay (shared) ─────────────────────────────────── */
+  .modal-overlay {
+    position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1000;
+    display:flex;align-items:center;justify-content:center;
+    backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity 0.2s;
+  }
+  .modal-overlay.active { opacity:1;pointer-events:all; }
+  .modal-box {
+    background:var(--bg-card);border:1px solid var(--border-default);
+    border-radius:var(--radius-lg);padding:24px;
+    box-shadow:var(--shadow-lg);transform:translateY(14px);transition:transform 0.22s;
+  }
+  .modal-overlay.active .modal-box { transform:translateY(0); }
+
+  /* ── Dashboard section separators ──────────────────────────── */
+  .section-divider {
+    display:flex;align-items:center;gap:12px;margin:8px 0 20px;
+  }
+  .section-divider-label {
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;
+    color:var(--text-muted);white-space:nowrap;
+  }
+  .section-divider-line {
+    flex:1;height:1px;background:var(--border-subtle);
+  }
+
+  /* ── Improved stat cards pulse on load ──────────────────────── */
+  @keyframes fadeSlideUp {
+    from { opacity:0; transform:translateY(10px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  #summary-stats .stat-card {
+    animation: fadeSlideUp 0.35s ease both;
+  }
+  #summary-stats .stat-card:nth-child(1) { animation-delay:0.05s; }
+  #summary-stats .stat-card:nth-child(2) { animation-delay:0.10s; }
+  #summary-stats .stat-card:nth-child(3) { animation-delay:0.15s; }
+  #summary-stats .stat-card:nth-child(4) { animation-delay:0.20s; }
+  #summary-stats .stat-card:nth-child(5) { animation-delay:0.25s; }
+  #summary-stats .stat-card:nth-child(6) { animation-delay:0.30s; }
+
+  /* ── Chart cards — subtle glow on hover ─────────────────────── */
+  .chart-card { transition: box-shadow 0.2s; }
+  .chart-card:hover { box-shadow: 0 0 0 1px rgba(99,102,241,0.2), var(--shadow-md); }
+
+  /* ── Preview table ──────────────────────────────────────────── */
+  #preview-table { width:100%;border-collapse:collapse;font-size:11.5px; }
+  #preview-table thead th {
+    position:sticky;top:0;background:var(--bg-panel);
+    padding:8px 12px;text-align:left;font-weight:600;
+    font-size:11px;color:var(--text-secondary);
+    border-bottom:1px solid var(--border-default);
+    white-space:nowrap;z-index:2;
+  }
+  #preview-table tbody td {
+    padding:7px 12px;border-bottom:1px solid var(--border-subtle);
+    color:var(--text-primary);max-width:200px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:var(--font-mono);font-size:11px;
+  }
+  #preview-table tbody tr:hover td { background:rgba(99,102,241,0.04); }
+  #preview-table tbody tr:last-child td { border-bottom:none; }
+
+  /* ── Quality ring wrapper improvements ──────────────────────── */
+  .quality-ring-wrapper {
+    display:flex;gap:20px;align-items:flex-start;padding:4px 0 12px;
+  }
+
+  /* ── Breadcrumb bar under header ────────────────────────────── */
+  .dash-breadcrumb {
+    display:flex;align-items:center;gap:6px;font-size:11px;
+    color:var(--text-muted);padding:6px 0 0;
+  }
+  .dash-breadcrumb span { color:var(--text-faint); }
+</style>
+
+<script>
+  // ── Dataset Preview ──────────────────────────────────────────────────────
+  let _previewAllRows = [];
+  let _previewColumns = [];
+
+  async function openDatasetPreview() {
+    const dsName = resultData?.dataset_info?.dataset_name;
+    if (!dsName) { toast('No dataset loaded', '', 'warning'); return; }
+
+    document.getElementById('preview-modal').classList.add('active');
+    document.getElementById('preview-meta').textContent = 'Loading preview...';
+    document.getElementById('preview-body').innerHTML =
+      '<div class="skeleton" style="height:260px;border-radius:8px;margin:12px;"></div>';
+    document.getElementById('preview-search').value = '';
+    document.getElementById('preview-row-count').textContent = '';
+
+    try {
+      const data = await api('GET', `/dataset/${dsName}/preview?rows=50`);
+      _previewColumns = data.columns || [];
+      _previewAllRows = data.rows    || [];
+      document.getElementById('preview-meta').textContent =
+        `${dsName.replace(/_/g,' ')}  •  ${_previewColumns.length} columns  •  showing ${_previewAllRows.length} rows`;
+      renderPreviewTable(_previewAllRows);
+    } catch (e) {
+      document.getElementById('preview-body').innerHTML =
+        `<div class="empty-state" style="padding:40px;">
+           <div class="empty-state-icon">⚠️</div>
+           <div class="empty-state-title">Preview failed</div>
+           <div class="empty-state-desc">${e.message}</div>
+         </div>`;
+    }
+  }
+
+  function closePreviewModal() {
+    document.getElementById('preview-modal').classList.remove('active');
+  }
+
+  document.getElementById('preview-modal').addEventListener('click', function(e) {
+    if (e.target === this) closePreviewModal();
+  });
+
+  function filterPreviewRows() {
+    const q = document.getElementById('preview-search').value.toLowerCase();
+    if (!q) { renderPreviewTable(_previewAllRows); return; }
+    const filtered = _previewAllRows.filter(row =>
+      Object.values(row).some(v => String(v).toLowerCase().includes(q))
+    );
+    renderPreviewTable(filtered);
+  }
+
+  function renderPreviewTable(rows) {
+    document.getElementById('preview-row-count').textContent =
+      `${rows.length} of ${_previewAllRows.length} rows`;
+
+    if (!rows.length) {
+      document.getElementById('preview-body').innerHTML =
+        '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No matching rows</div>';
+      return;
+    }
+
+    const cols = _previewColumns;
+    const thead = cols.map(c =>
+      `<th title="${c}">${c.length > 16 ? c.slice(0,14)+'…' : c}</th>`
+    ).join('');
+
+    const tbody = rows.map(row => {
+      const cells = cols.map(c => {
+        const v = row[c] ?? '';
+        const display = String(v).length > 28 ? String(v).slice(0,26)+'…' : v;
+        return `<td title="${v}">${display || '<span style="color:var(--text-faint);">null</span>'}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    document.getElementById('preview-body').innerHTML =
+      `<table id="preview-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+  }
+
+  // Keyboard shortcut: Escape closes modal
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closePreviewModal();
+  });
+</script>
+
+</body>
+</html>

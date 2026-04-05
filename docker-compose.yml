@@ -1,0 +1,56 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# SparkInsight Analytics Platform — Docker Compose
+# Runs: backend (FastAPI + PySpark) + frontend (static file server)
+# Usage: docker-compose up --build
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: "3.9"
+
+services:
+
+  # ── Backend: FastAPI + PySpark ───────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sparkinsight-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount datasets folder so you can add/update datasets without rebuilding
+      - ./datasets:/app/datasets
+      # Mount service account key
+      - ./backend/serviceAccountKey.json:/app/backend/serviceAccountKey.json:ro
+    env_file:
+      - .env
+    environment:
+      # Python paths — guaranteed correct inside Linux container
+      PYSPARK_PYTHON: python3
+      PYSPARK_DRIVER_PYTHON: python3
+      # Spark settings
+      SPARK_MASTER: local[*]
+      SPARK_DRIVER_MEMORY: 4g
+      SPARK_EXECUTOR_MEMORY: 4g
+      SPARK_DEFAULT_PARTITIONS: "8"
+      SPARK_APP_NAME: SparkInsight
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── Frontend: Static file server ─────────────────────────────────────────────
+  frontend:
+    image: python:3.10-slim
+    container_name: sparkinsight-frontend
+    working_dir: /app/frontend
+    volumes:
+      - ./frontend:/app/frontend:ro
+    ports:
+      - "3000:3000"
+    command: python3 -m http.server 3000
+    depends_on:
+      - backend
+    restart: unless-stopped

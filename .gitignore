@@ -1,0 +1,19 @@
+# Environments
+.env
+
+# Dependencies
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Backend Credentials
+backend/serviceAccountKey.json
+
+# Frontend Credentials
+frontend/firebaseConfig.js
